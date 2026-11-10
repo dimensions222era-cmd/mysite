@@ -1,190 +1,82 @@
-from flask import Flask, request, redirect, url_for, render_template_string
-from pathlib import Path
+from flask import Flask, request, redirect, render_template_string
 from werkzeug.utils import secure_filename
+from pathlib import Path
 
 app = Flask(__name__)
 
-FOLDER = Path("static/uploads")
+FOLDER = Path("static/music")
 FOLDER.mkdir(parents=True, exist_ok=True)
 
-app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
-
-PAGE = """
+HTML = """
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DARK MUSIC</title><style>
-* {
-    box-sizing: border-box;
-}
-
+<title>Music Hub</title>
+<style>
 body {
-    margin: 0;
-    background: #050505;
+    background: #080808;
     color: white;
-    font-family: Arial, sans-serif;
-}
-
-header {
-    padding: 25px;
-    border-bottom: 1px solid #444;
-    letter-spacing: 5px;
-    font-size: 22px;
-}
-
-.hero {
+    font-family: Arial;
     text-align: center;
-    padding: 75px 15px;
+    padding: 30px;
 }
-
-h1 {
-    font-size: 45px;
-    letter-spacing: 4px;
-}
-
-p {
-    color: #888;
-}
-
-.container {
-    max-width: 700px;
-    margin: auto;
-    padding: 20px;
-}
-
-.upload, .track {
-    border: 1px solid #555;
-    padding: 25px;
-    margin-bottom: 20px;
-    background: #0b0b0b;
-}
-
-button {
-    background: transparent;
-    color: white;
+h1 { color: white; }
+.box {
     border: 1px solid white;
-    padding: 13px 22px;
-    margin-top: 15px;
-    cursor: pointer;
+    border-radius: 15px;
+    padding: 25px;
+    max-width: 500px;
+    margin: 30px auto;
 }
-
-button:hover {
+button {
     background: white;
     color: black;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
 }
-
-input {
-    color: white;
-    max-width: 100%;
-    margin: 20px 0;
-}
-
-audio {
-    width: 100%;
-}
-
-footer {
-    text-align: center;
-    padding: 40px;
-    color: #666;
-    letter-spacing: 3px;
-}
+a { color: white; }
 </style>
-</head><body>
-
-<header>DARK MUSIC.</header>
-
-<div class="hero">
-    <h1>FEEL THE MUSIC.</h1>
-    <p>YOUR SOUND. YOUR ATMOSPHERE.</p>
+</head>
+<body>
+<h1>🎵 MUSIC HUB</h1>
+<div class="box">
+<h2>Загрузи свою музыку</h2>
+<form action="/upload" method="post" enctype="multipart/form-data">
+<input type="file" name="file" accept=".mp3,.wav,.ogg" required>
+<br><br>
+<button type="submit">Загрузить</button>
+</form>
 </div>
-
-<div class="container">
-
-    <div class="upload">
-        <h2>ADD YOUR MUSIC</h2>
-
-        <form action="/upload" method="POST"
-              enctype="multipart/form-data">
-
-            <input type="file" name="music"
-                   accept=".mp3,.wav,.ogg" required>
-
-            <br>
-            <button type="submit">UPLOAD TRACK +</button>
-        </form>
-    </div>
-
-    <h2>YOUR COLLECTION /</h2>
-
-    {% for track in tracks %}
-    <div class="track">
-        <h3>♫ {{ track.name }}</h3>
-
-        <audio controls preload="none"
-               src="{{ track.url }}"></audio>
-
-        <form action="/delete" method="POST">
-            <input type="hidden" name="filename"
-                   value="{{ track.filename }}">
-            <button type="submit">DELETE TRACK</button>
-        </form>
-    </div>
-    {% else %}
-    <p>YOUR COLLECTION IS EMPTY.</p>
-    {% endfor %}
-
+<div class="box">
+<h2>Треки</h2>
+{% for song in songs %}
+<p>{{ song }}</p>
+<audio controls src="/static/music/{{ song }}"></audio>
+{% endfor %}
 </div>
-
-<footer>DARK MUSIC © 2026</footer>
-
 </body>
 </html>
 """
 
 @app.route("/")
 def home():
-    tracks = []
-
-    for file in sorted(FOLDER.iterdir()):
-        if file.is_file() and file.suffix.lower() in [".mp3", ".wav", ".ogg"]:
-            tracks.append({
-                "name": file.stem,
-                "filename": file.name,
-                "url": url_for("static", filename="uploads/" + file.name)
-            })
-
-    return render_template_string(PAGE, tracks=tracks)
-
+    songs = [f.name for f in FOLDER.iterdir() if f.is_file()]
+    return render_template_string(HTML, songs=songs)
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    file = request.files.get("music")
-
+    file = request.files.get("file")
     if not file or not file.filename:
         return "Файл не выбран", 400
 
     filename = secure_filename(file.filename)
-
-    if not filename or Path(filename).suffix.lower() not in [".mp3", ".wav", ".ogg"]:
+    if Path(filename).suffix.lower() not in [".mp3", ".wav", ".ogg"]:
         return "Неверный формат", 400
 
     file.save(FOLDER / filename)
-    return redirect(url_for("home"))
-
-
-@app.route("/delete", methods=["POST"])
-def delete():
-    filename = secure_filename(request.form.get("filename", ""))
-    path = FOLDER / filename
-
-    if path.is_file() and path.parent == FOLDER:
-        path.unlink()
-
-    return redirect(url_for("home"))
-
+    return redirect("/")
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000)
+    app.run(host="0.0.0.0", port=5000)
